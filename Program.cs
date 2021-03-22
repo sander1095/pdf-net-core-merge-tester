@@ -23,8 +23,7 @@ namespace pdfmerger
                     var file = creator.merger.Create(dataObj.FilesToMerge.Select(x => (x.ContentType, x.Content())));
 
                     using var fileStream = new FileStream($"../../../results/{creator.dirName}/{dataObj.ExpectedFileName}", FileMode.Create, FileAccess.ReadWrite);
-                    var bytes = file.ToArray();
-                    fileStream.Write(file.ToArray(), 0, bytes.Length);
+                    fileStream.Write(file, 0, file.Length);
                     fileStream.Flush();
                 }
             }

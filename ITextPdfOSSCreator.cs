@@ -1,40 +1,39 @@
 ﻿using iText.IO.Source;
-using iTextSharp.text;
 using iTextSharp.text.pdf;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Document = iTextSharp.text.Document;
+using Image = iTextSharp.text.Image;
 using PdfReader = iTextSharp.text.pdf.PdfReader;
 
 namespace pdfmerger
 {
     public class ITextPdfOSSCreator : IPdfMerger
     {
-        public MemoryStream Create(IEnumerable<(string ContentType, byte[] Content)> blobs)
-        {
-            return Method1(blobs);
-        }
-
+        // https://github.com/VahidN/iTextSharp.LGPLv2.Core
         // https://stackoverflow.com/a/6056801/3013479
-        public static MemoryStream Method1(IEnumerable<(string ContentType, byte[] Content)> blobs)
+        // https://stackoverflow.com/a/26111677/3013479
+        // https://stackoverflow.com/a/4933889/3013479
+        public byte[] Create(IEnumerable<(string ContentType, byte[] Content)> blobs)
         {
-            // step 1: creation of a document-object
-            Document document = new Document();
-            //create newFileStream object which will be disposed at the end
+            var document = new Document();
             using var memoryStream = new MemoryStream();
-            // step 2: we create a writer that listens to the document
-            PdfCopy copy = new PdfCopy(document, memoryStream);
-            if (copy == null)
-            {
-                return null;
-            }
+            var copy = new PdfCopy(document, memoryStream);
 
-            // step 3: we open the document
             document.Open();
 
+            //var firstIteration = true;
             foreach (var blob in blobs)
             {
-                // https://stackoverflow.com/a/26111677/3013479
+                //TODO: Determine is this is needed? Perhaps you need to use this to prevent overlapping files on 1 page?
+                //if (!firstIteration)
+                //{
+                //    // Add an empty page
+                //    copy.AddPage(new Rectangle(0, 0), 0);
+                //}
+
+                // TODO: Make the image be on the page correctly
                 if (blob.ContentType.StartsWith("image/"))
                 {
                     ReadImage(copy, blob.Content);
@@ -43,63 +42,79 @@ namespace pdfmerger
                 {
                     ReadPdf(copy, blob.Content);
                 }
+
+                //firstIteration = false;
             }
 
             // step 5: we close the document and writer
             copy.Close();
             document.Close();
 
-            return memoryStream;
+            return memoryStream.ToArray();
+        }
 
-            static void ReadImage(PdfCopy copy, byte[] content)
+        private static void ReadPdf(PdfCopy copy, byte[] content)
+        {
+            var reader = new PdfReader(content);
+
+            for (int i = 1; i <= reader.NumberOfPages; i++)
             {
-                // https://stackoverflow.com/a/26111677/3013479
-
-                Document imageDocument = new Document();
-                ByteArrayOutputStream imageDocumentOutputStream = new ByteArrayOutputStream();
-                PdfWriter imageDocumentWriter = PdfWriter.GetInstance(imageDocument, imageDocumentOutputStream);
-
-                imageDocument.Open();
-                if (imageDocument.NewPage())
-                {
-                    var image = Image.GetInstance(content);
-
-                    if (!imageDocument.Add(image))
-                    {
-                        throw new Exception("Unable to add image to page!");
-                    }
-
-                    imageDocument.Close();
-                    imageDocumentWriter.Close();
-
-                    PdfReader imageDocumentReader = new PdfReader(imageDocumentOutputStream.ToArray());
-
-                    copy.AddPage(copy.GetImportedPage(imageDocumentReader, 1));
-
-                    imageDocumentReader.Close();
-                }
+                var page = copy.GetImportedPage(reader, i);
+                copy.AddPage(page);
             }
 
-            static void ReadPdf(PdfCopy copy, byte[] content)
+            var form = reader.AcroForm;
+            if (form != null)
             {
-                // we create a reader for a certain document
-                PdfReader reader = new PdfReader(content);
-                reader.ConsolidateNamedDestinations();
+                copy.CopyAcroForm(reader);
+            }
+            //TODO: DEtermine if this is necessary.
+            // For some reason this fails sometiems?
+            //else
+            //{
+            //    reader.Close();
+            //    throw new Exception("AcroForm is null");
+            //}
 
-                // step 4: we add content
-                for (int i = 1; i <= reader.NumberOfPages; i++)
+            reader.Close();
+        }
+
+        private static void ReadImage(PdfCopy copy, byte[] content)
+        {
+            var document = new Document();
+            using var stream = new ByteArrayOutputStream();
+            var writer = PdfWriter.GetInstance(document, stream);
+
+            document.Open();
+            if (document.NewPage())
+            {
+                var image = Image.GetInstance(content);
+
+                var pageWidth = copy.PageSize.Width - (10 + 10);
+                var pageHeight = copy.PageSize.Height - (10 + 10);
+                image.SetAbsolutePosition(10, 10);
+                image.ScaleToFit(pageWidth, pageHeight);
+
+                if (!document.Add(image))
                 {
-                    PdfImportedPage page = copy.GetImportedPage(reader, i);
-                    copy.AddPage(page);
+                    document.Close();
+                    writer.Close();
+                    throw new Exception("Unable to add image to page!");
                 }
 
-                PRAcroForm form = reader.AcroForm;
-                if (form != null)
-                {
-                    copy.CopyAcroForm(reader);
-                }
+                document.Close();
+                writer.Close();
+
+                var reader = new PdfReader(stream.ToArray());
+
+                copy.AddPage(copy.GetImportedPage(reader, 1));
 
                 reader.Close();
+            }
+            else
+            {
+                document.Close();
+                throw new Exception("New page could not be created");
             }
         }
     }
