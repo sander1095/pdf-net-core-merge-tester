@@ -85,7 +85,6 @@ namespace pdfmerger
                 {
                     PdfImportedPage page = copier.GetImportedPage(reader, i);
                     copier.AddPage(page);
-                    copier.AddPage()
                 }
 
                 PRAcroForm form = reader.AcroForm;
