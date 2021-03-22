@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using Document = iTextSharp.text.Document;
 using Image = iTextSharp.text.Image;
 using PdfReader = iTextSharp.text.pdf.PdfReader;
@@ -12,12 +13,12 @@ namespace pdfmerger
     {
         // https://github.com/VahidN/iTextSharp.LGPLv2.Core
         // https://stackoverflow.com/a/6056801/3013479
-        public byte[] Create(IEnumerable<(string ContentType, byte[] Content)> blobs)
+        public async Task<byte[]> CreateAsync(IEnumerable<(string ContentType, byte[] Content)> blobs)
         {
             Document document = null;
             PdfCopy copy = null;
-            //TODO: Test that this disposes correctly if an exception occurs.
-            using var stream = new MemoryStream();
+
+            await using var stream = new MemoryStream();
 
             try
             {
@@ -31,7 +32,7 @@ namespace pdfmerger
                     // TODO: Make the image be on the page correctly
                     if (blob.ContentType.StartsWith("image/"))
                     {
-                        AddImage(copy, blob.Content);
+                        await AddImageAsync(copy, blob.Content);
                     }
                     else if (blob.ContentType == "application/pdf")
                     {
@@ -81,7 +82,7 @@ namespace pdfmerger
             }
         }
 
-        private static void AddImage(PdfCopy copy, byte[] content)
+        private static async Task AddImageAsync(PdfCopy copy, byte[] content)
         {
             // We have a little workaround to add images because we use PdfCopy which is only useful for COPYING and doesn't work for adding pages manually.
             // So we create a new PDF in memory containing the image, and then we copy that PDF into the resulting PDF.
@@ -89,7 +90,7 @@ namespace pdfmerger
             Document document = null;
             PdfWriter writer = null;
             PdfReader reader = null;
-            using var stream = new MemoryStream();
+            await using var stream = new MemoryStream();
 
             try
             {
