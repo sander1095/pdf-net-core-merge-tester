@@ -33,9 +33,11 @@ namespace pdfmerger
                         }
                         else if (blob.ContentType.StartsWith("application/pdf"))
                         {
-                            Stream stream = new MemoryStream(blob.Content);
-                            var d = new PdfDocument(new PdfReader(stream));
-                            d.CopyPagesTo(1, d.GetNumberOfPages(), pdf, pdf.GetNumberOfPages() + 1);
+                            using (Stream stream = new MemoryStream(blob.Content))
+                            {
+                                var d = new PdfDocument(new PdfReader(stream));
+                                d.CopyPagesTo(1, d.GetNumberOfPages(), pdf, pdf.GetNumberOfPages() + 1);
+                            }
                         }
 
                         firstIteration = false;
