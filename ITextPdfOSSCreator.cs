@@ -1,5 +1,4 @@
-﻿using iText.IO.Source;
-using iTextSharp.text.pdf;
+﻿using iTextSharp.text.pdf;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -13,83 +12,100 @@ namespace pdfmerger
     {
         // https://github.com/VahidN/iTextSharp.LGPLv2.Core
         // https://stackoverflow.com/a/6056801/3013479
-        // https://stackoverflow.com/a/26111677/3013479
-        // https://stackoverflow.com/a/4933889/3013479
         public byte[] Create(IEnumerable<(string ContentType, byte[] Content)> blobs)
         {
-            var document = new Document();
-            using var memoryStream = new MemoryStream();
-            var copy = new PdfCopy(document, memoryStream);
+            Document document = null;
+            PdfCopy copy = null;
+            //TODO: Test that this disposes correctly if an exception occurs.
+            using var stream = new MemoryStream();
 
-            document.Open();
-
-            //var firstIteration = true;
-            foreach (var blob in blobs)
+            try
             {
-                //TODO: Determine is this is needed? Perhaps you need to use this to prevent overlapping files on 1 page?
-                //if (!firstIteration)
-                //{
-                //    // Add an empty page
-                //    copy.AddPage(new Rectangle(0, 0), 0);
-                //}
+                document = new Document();
+                copy = new PdfCopy(document, stream);
 
-                // TODO: Make the image be on the page correctly
-                if (blob.ContentType.StartsWith("image/"))
-                {
-                    ReadImage(copy, blob.Content);
-                }
-                else if (blob.ContentType.StartsWith("application/pdf"))
-                {
-                    ReadPdf(copy, blob.Content);
-                }
+                document.Open();
 
-                //firstIteration = false;
+                foreach (var blob in blobs)
+                {
+                    // TODO: Make the image be on the page correctly
+                    if (blob.ContentType.StartsWith("image/"))
+                    {
+                        AddImage(copy, blob.Content);
+                    }
+                    else if (blob.ContentType == "application/pdf")
+                    {
+                        AddPdf(copy, blob.Content);
+                    }
+                    else
+                    {
+                        throw new ArgumentException($"Blob with ContentType {blob.ContentType} is not supported for merging.");
+                    }
+                }
+            }
+            finally
+            {
+                document?.Close();
+                copy?.Close();
             }
 
-            // step 5: we close the document and writer
-            copy.Close();
-            document.Close();
-
-            return memoryStream.ToArray();
+            return stream.ToArray();
         }
 
-        private static void ReadPdf(PdfCopy copy, byte[] content)
+        private static void AddPdf(PdfCopy copy, byte[] content)
         {
-            var reader = new PdfReader(content);
-
-            for (int i = 1; i <= reader.NumberOfPages; i++)
+            PdfReader reader = null;
+            try
             {
-                var page = copy.GetImportedPage(reader, i);
-                copy.AddPage(page);
-            }
+                reader = new PdfReader(content);
 
-            var form = reader.AcroForm;
-            if (form != null)
+                // Grab each page from the PDF and copy it
+                for (int i = 1; i <= reader.NumberOfPages; i++)
+                {
+                    var page = copy.GetImportedPage(reader, i);
+                    copy.AddPage(page);
+                }
+
+                // A PDF can have a form; we copy it into the resulting pdf.
+                // Example: https://web.archive.org/web/20210322125650/https://www.windjack.com/PDFSamples/ListPrograming_Part1_AcroForm.pdf 
+                var form = reader.AcroForm;
+                if (form != null)
+                {
+                    copy.CopyAcroForm(reader);
+                }
+
+            }
+            finally
             {
-                copy.CopyAcroForm(reader);
+                reader?.Close();
             }
-            //TODO: DEtermine if this is necessary.
-            // For some reason this fails sometiems?
-            //else
-            //{
-            //    reader.Close();
-            //    throw new Exception("AcroForm is null");
-            //}
-
-            reader.Close();
         }
 
-        private static void ReadImage(PdfCopy copy, byte[] content)
+        private static void AddImage(PdfCopy copy, byte[] content)
         {
-            var document = new Document();
-            using var stream = new ByteArrayOutputStream();
-            var writer = PdfWriter.GetInstance(document, stream);
+            // We have a little workaround to add images because we use PdfCopy which is only useful for COPYING and doesn't work for adding pages manually.
+            // So we create a new PDF in memory containing the image, and then we copy that PDF into the resulting PDF.
+            // https://stackoverflow.com/a/26111677/3013479
+            Document document = null;
+            PdfWriter writer = null;
+            PdfReader reader = null;
+            using var stream = new MemoryStream();
 
-            document.Open();
-            if (document.NewPage())
+            try
             {
+                document = new Document();
+                writer = PdfWriter.GetInstance(document, stream);
+
+                document.Open();
+                if (!document.NewPage())
+                {
+                    throw new Exception("New page could not be created");
+                }
+
                 var image = Image.GetInstance(content);
 
+                // Make the image fit on the page
+                // https://stackoverflow.com/q/4932187/3013479
                 var pageWidth = copy.PageSize.Width - (10 + 10);
                 var pageHeight = copy.PageSize.Height - (10 + 10);
                 image.SetAbsolutePosition(10, 10);
@@ -97,24 +113,22 @@ namespace pdfmerger
 
                 if (!document.Add(image))
                 {
-                    document.Close();
-                    writer.Close();
-                    throw new Exception("Unable to add image to page!");
+                    throw new Exception("Unable to add image to page");
                 }
 
+                // These are required for the PdfReader instantation to succeed
                 document.Close();
                 writer.Close();
 
-                var reader = new PdfReader(stream.ToArray());
+                reader = new PdfReader(stream.ToArray());
 
                 copy.AddPage(copy.GetImportedPage(reader, 1));
-
-                reader.Close();
             }
-            else
+            finally
             {
-                document.Close();
-                throw new Exception("New page could not be created");
+                document?.Close();
+                reader?.Close();
+                writer?.Close();
             }
         }
     }
