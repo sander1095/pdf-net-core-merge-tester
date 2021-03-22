@@ -11,7 +11,6 @@ namespace pdfmerger
         public MemoryStream Create(IEnumerable<(string ContentType, byte[] Content)> blobs)
         {
             return Method1(blobs);
-            return Method2(blobs);
         }
 
         // https://stackoverflow.com/a/6056801/3013479
@@ -96,37 +95,5 @@ namespace pdfmerger
                 reader.Close();
             }
         }
-
-
-        // https://stackoverflow.com/a/26883360/3013479
-        private static MemoryStream Method2(IEnumerable<(string ContentType, byte[] Content)> blobs)
-        {
-            using (var memoryStream = new MemoryStream())
-            {
-                Document document = new Document();
-                PdfCopy pdf = new PdfCopy(document, memoryStream);
-                PdfReader reader = null;
-                try
-                {
-                    document.Open();
-                    foreach (var blob in blobs)
-                    {
-                        reader = new PdfReader(blob.Content);
-                        // TODO: Apparently you sohuldnt use this acro method?
-                        pdf.CopyAcroForm(reader);
-                        reader.Close();
-                    }
-
-                    return memoryStream;
-                }
-                finally
-                {
-                    document?.Close();
-                    reader?.Close();
-                    pdf?.Close();
-                }
-            }
-        }
     }
-
 }
