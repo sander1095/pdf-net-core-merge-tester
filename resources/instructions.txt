@@ -1,0 +1,16 @@
+merge timeseet-image.jpg, timehseet.image2.png
+expect merged-images.pdf
+
+
+merge timesheet-pdf.pdf, timesheet-2-pdf.pdf
+expect merged-pdfs.pdf
+
+merge merged-images.pdf, merged-pdfs.pdf
+expect merged-merged.pdf
+
+
+merge timesheet-image2, merged-merged.pdf
+expect image2-merged-merged-merged.pdf
+
+merge merged-merged.pdf, timesheet-image2
+expect merged-merged-image2-merged.pdf
