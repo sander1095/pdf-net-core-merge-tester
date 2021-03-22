@@ -1,4 +1,5 @@
-﻿using iTextSharp.text.pdf;
+﻿using iTextSharp.text;
+using iTextSharp.text.pdf;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -11,6 +12,11 @@ namespace pdfmerger
 {
     public class ITextPdfOSSCreator : IPdfMerger
     {
+        private const float _imageLeftMargin = 10f;
+        private const float _imageRightMargin = 10f;
+        private const float _imageBottomMargin = 30f;
+        private const float _imageTopMargin = 30f;
+
         // https://github.com/VahidN/iTextSharp.LGPLv2.Core
         // https://stackoverflow.com/a/6056801/3013479
         public async Task<byte[]> CreateAsync(IEnumerable<(string ContentType, byte[] Content)> blobs)
@@ -107,9 +113,9 @@ namespace pdfmerger
 
                 // Make the image fit on the page
                 // https://stackoverflow.com/q/4932187/3013479
-                var pageWidth = copy.PageSize.Width - (10 + 10);
-                var pageHeight = copy.PageSize.Height - (10 + 10);
-                image.SetAbsolutePosition(10, 10);
+                image.Alignment = Element.ALIGN_MIDDLE;
+                var pageWidth = copy.PageSize.Width - (_imageLeftMargin + _imageRightMargin);
+                var pageHeight = copy.PageSize.Height - (_imageBottomMargin + _imageTopMargin);
                 image.ScaleToFit(pageWidth, pageHeight);
 
                 if (!document.Add(image))
