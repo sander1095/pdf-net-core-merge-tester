@@ -35,7 +35,6 @@ namespace pdfmerger
 
                 foreach (var blob in blobs)
                 {
-                    // TODO: Make the image be on the page correctly
                     if (blob.ContentType.StartsWith("image/"))
                     {
                         await AddImageAsync(copy, blob.Content);
